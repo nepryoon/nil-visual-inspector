@@ -1,7 +1,8 @@
 # NIL — Visual Inspector
 
-**Live docs:** https://www.neuromorphicinference.com/demos/visual-inspector  
-**Evidence index:** https://www.neuromorphicinference.com/evidence  
+> **Live docs:** https://www.neuromorphicinference.com/demos/visual-inspector  
+> **Evidence index:** https://www.neuromorphicinference.com/evidence  
+> **Demos hub:** https://www.neuromorphicinference.com/demos
 
 ## Goal
 Image classification with explainability and production-oriented inference packaging (CPU-first, GPU optional).
