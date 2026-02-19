@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RAG Copilot — PDF Knowledge Demo — Neuromorphic Inference Lab</title>
+  <meta name="description" content="RAG Knowledge Copilot: PDF upload, vector indexing, contextual chat with citations, and automated benchmark evaluation." />
+  <link rel="icon" href="/favicon.svg" />
+  <link rel="stylesheet" href="/style.css" />
+
+  <style>
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed #333;
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s;
+      margin: 1rem 0;
+    }
+    .upload-zone:hover {
+      border-color: #00ff88;
+    }
+    .upload-zone.drag-over {
+      border-color: #4fc3f7;
+      background: rgba(79, 195, 247, 0.05);
+    }
+    
+    /* Progress Bar */
+    .progress-bar-wrapper {
+      background: #1a1a1a;
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+      margin: .8rem 0;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #00ff88, #4fc3f7);
+      width: 0%;
+      transition: width .4s ease;
+    }
+    
+    /* Ingest Result */
+    .ingest-result {
+      padding: 1rem;
+      border-radius: 6px;
+      margin-top: 1rem;
+      font-family: monospace;
+      font-size: .9rem;
+    }
+    .ingest-result.success {
+      background: #0a1f0f;
+      border: 1px solid #00ff88;
+      color: #00ff88;
+    }
+    .ingest-result.error {
+      background: #1f0a0a;
+      border: 1px solid #ff4444;
+      color: #ff6666;
+    }
+    
+    /* Chat Window */
+    .chat-window {
+      background: #0d0d0d;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 1rem;
+      height: 350px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: .8rem;
+      margin-bottom: 1rem;
+    }
+    .chat-message {
+      padding: .7rem 1rem;
+      border-radius: 6px;
+      max-width: 85%;
+      font-size: .9rem;
+      line-height: 1.6;
+    }
+    .chat-message.user {
+      background: #1a2a1a;
+      border: 1px solid #2a4a2a;
+      align-self: flex-end;
+      color: #ccc;
+    }
+    .chat-message.assistant {
+      background: #111;
+      border: 1px solid #333;
+      align-self: flex-start;
+      color: #eee;
+    }
+    .chat-message.system {
+      background: #0e1520;
+      border: 1px solid #1e3a5a;
+      align-self: center;
+      color: #4fc3f7;
+      font-size: .8rem;
+    }
+    .chat-message.error {
+      background: #1f0a0a;
+      border: 1px solid #ff4444;
+      color: #ff6666;
+    }
+    
+    /* Citations Block */
+    .citations-block {
+      margin-top: .8rem;
+      padding-top: .8rem;
+      border-top: 1px solid #2a2a2a;
+      font-size: .8rem;
+    }
+    .citation {
+      color: #888;
+      margin: .3rem 0;
+      padding: .4rem;
+      background: #0a0a0a;
+      border-radius: 4px;
+    }
+    .citation-toggle {
+      cursor: pointer;
+      color: #4fc3f7;
+      text-decoration: underline;
+      font-size: .75rem;
+      margin-top: .5rem;
+      display: inline-block;
+    }
+    
+    /* Chat Input */
+    .chat-input-row {
+      display: flex;
+      gap: .5rem;
+    }
+    .chat-input-row input {
+      flex: 1;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: .7rem 1rem;
+      color: #eee;
+      font-family: monospace;
+    }
+    .chat-input-row input:focus {
+      outline: none;
+      border-color: #00ff88;
+    }
+    
+    /* Metrics Table */
+    .metrics-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.5rem;
+      font-size: .85rem;
+    }
+    .metrics-table th,
+    .metrics-table td {
+      padding: .7rem 1rem;
+      border: 1px solid #222;
+      text-align: left;
+    }
+    .metrics-table th {
+      background: #111;
+      color: #4fc3f7;
+    }
+    .score-cell {
+      font-family: monospace;
+      color: #00ff88;
+      font-weight: bold;
+    }
+    
+    /* Chart */
+    #metricsChart {
+      background: #0d0d0d;
+      border: 1px solid #222;
+      border-radius: 8px;
+      display: block;
+      margin: 1.5rem auto;
+      max-width: 100%;
+    }
+    
+    /* Architecture Diagram */
+    .architecture-diagram pre {
+      background: #0a0a0a;
+      border: 1px solid #222;
+      border-radius: 6px;
+      padding: 1.2rem;
+      overflow-x: auto;
+      font-size: .78rem;
+      color: #4fc3f7;
+      line-height: 1.5;
+    }
+    
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #333;
+      border-top-color: #00ff88;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-right: .5rem;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Status Badge */
+    .status-badge {
+      display: inline-block;
+      padding: .4rem .8rem;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+      margin-left: .5rem;
+    }
+    .status-badge.online {
+      background: rgba(52, 211, 153, 0.15);
+      border: 1px solid rgba(52, 211, 153, 0.40);
+      color: #00ff88;
+    }
+    .status-badge.offline {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.40);
+      color: #ff4444;
+    }
+    .status-badge.pending {
+      background: rgba(255, 152, 0, 0.15);
+      border: 1px solid rgba(255, 152, 0, 0.40);
+      color: #ff9800;
+    }
+    
+    /* Offline Banner */
+    .offline-banner {
+      background: #1f0a0a;
+      border: 1px solid #ff4444;
+      border-radius: 6px;
+      color: #ff8888;
+      padding: 1rem 1.2rem;
+      margin: 1rem 0;
+      font-size: 0.88rem;
+      line-height: 1.7;
+    }
+    .offline-banner ul {
+      margin: 0.5rem 0 0 1.2rem;
+      padding: 0;
+    }
+    .offline-banner li {
+      margin: 0.2rem 0;
+    }
+    .offline-banner code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+    .offline-banner strong {
+      color: #ffaaaa;
+    }
+    
+    /* Section visibility */
+    .hidden {
+      display: none;
+    }
+    
+    /* File info */
+    .file-info {
+      margin-top: .8rem;
+      padding: .6rem;
+      background: #111;
+      border-radius: 6px;
+      font-size: .85rem;
+      color: #aaa;
+    }
+    
+    /* Progress steps */
+    .progress-steps {
+      margin-top: .5rem;
+      font-size: .8rem;
+      color: #4fc3f7;
+      font-family: monospace;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="nav">
+    <div class="inner">
+      <div class="brand">
+        <img src="/logo.svg" alt="Neuromorphic Inference Lab" />
+        <span>Neuromorphic Inference Lab</span>
+      </div>
+      <nav class="navlinks" aria-label="Primary navigation">
+        <a data-nav href="/">Signal</a>
+        <a data-nav class="active" href="/demos/">Systems</a>
+        <a data-nav href="/evidence/">Proof Ledger</a>
+        <a data-nav href="/about/">Identity</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Section 1: Hero -->
+    <section class="hero">
+      <p class="kicker">PDF Knowledge Demo</p>
+      <h1 class="h1">RAG Copilot — Document Q&A with Citations</h1>
+      <p class="sub">
+        Upload a PDF document (max 5000 words), build a vector index, and interact with contextual chat over your document with full citation tracing.
+        Run automated benchmarks to evaluate retrieval precision, answer relevance, and context coverage.
+      </p>
+      <div class="badges">
+        <span class="badge">RAG</span>
+        <span class="badge">FAISS</span>
+        <span class="badge">Citations</span>
+        <span class="badge">Evaluation</span>
+        <span id="systemStatus" class="status-badge offline">System Offline</span>
+      </div>
+    </section>
+
+    <!-- Offline Banner (initially hidden) -->
+    <div id="offlineBanner" class="offline-banner" style="display:none"></div>
+
+    <!-- Section 2: Upload & Ingest -->
+    <section class="section card">
+      <h2>1. Upload & Index PDF</h2>
+      <p class="sub">Select a PDF file (max 5000 words). The system will extract text, chunk it with sliding windows, and build a FAISS vector index.</p>
+      
+      <div id="uploadZone" class="upload-zone">
+        <div style="font-size: 2rem; margin-bottom: .5rem;">📄</div>
+        <div style="font-weight: 600; margin-bottom: .3rem;">Drop PDF here or click to browse</div>
+        <div style="font-size: .85rem; color: #888;">Maximum 5000 words</div>
+        <input type="file" id="fileInput" accept=".pdf" style="display: none;" />
+      </div>
+      
+      <div id="fileInfo" class="file-info hidden"></div>
+      
+      <div style="margin-top: 1rem;">
+        <button id="ingestBtn" class="btn primary" disabled>▶ Start indexing</button>
+      </div>
+      
+      <div id="progressContainer" class="hidden" style="margin-top: 1rem;">
+        <div class="progress-bar-wrapper">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+        <div id="progressSteps" class="progress-steps"></div>
+      </div>
+      
+      <div id="ingestResult" class="ingest-result hidden"></div>
+    </section>
+
+    <!-- Section 3: Chat -->
+    <section id="chatSection" class="section card hidden">
+      <h2>2. Chat with Your Document</h2>
+      <p class="sub">Ask questions about your document. The system retrieves relevant chunks and generates contextual answers with citations.</p>
+      
+      <div id="chatWindow" class="chat-window"></div>
+      
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Ask a question about your document..." />
+        <button id="sendBtn" class="btn primary">Send</button>
+      </div>
+    </section>
+
+    <!-- Section 4: Benchmark -->
+    <section id="benchmarkSection" class="section card hidden">
+      <h2>3. Run Automated Benchmark</h2>
+      <p class="sub">Generate synthetic test questions and evaluate the RAG pipeline with three reference-free metrics.</p>
+      
+      <div style="margin-top: 1rem;">
+        <button id="benchmarkBtn" class="btn primary">⚡ Run benchmark</button>
+      </div>
+      
+      <div id="benchmarkResults" class="hidden" style="margin-top: 1.5rem;">
+        <canvas id="metricsChart" width="600" height="300"></canvas>
+        
+        <table class="metrics-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Score</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="metricsTableBody"></tbody>
+        </table>
+        
+        <details style="margin-top: 1.5rem; padding: 1rem; background: #111; border-radius: 6px;">
+          <summary style="cursor: pointer; font-weight: 600; margin-bottom: .5rem;">View Test Questions & Answers</summary>
+          <div id="testQuestionsContainer" style="margin-top: 1rem;"></div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Section 5: Technical Explanation -->
+    <section class="section card">
+      <h2>4. Technical Architecture</h2>
+      
+      <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">Ingest Pipeline</h3>
+      <p style="color: var(--muted); line-height: 1.6;">
+        The ingest pipeline uses <strong>pdfplumber</strong> for text extraction, validates against a 5000-word hard limit,
+        then applies sliding-window chunking (200 words per chunk, 40-word overlap). Each chunk is embedded using
+        <strong>sentence-transformers (all-MiniLM-L6-v2)</strong> and indexed in a <strong>FAISS IndexFlatIP</strong>
+        (cosine similarity on normalized embeddings). The index is stored in-memory per session.
+      </p>
+      
+      <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">RAG Pipeline</h3>
+      <p style="color: var(--muted); line-height: 1.6;">
+        For each user query, the system embeds the question, retrieves the top-4 most similar chunks from FAISS,
+        injects them as context into <strong>GPT-4o Mini</strong>, and generates an answer. The system prompt constrains
+        the model to answer only from provided context and refuse out-of-scope questions. Each response includes
+        citations with chunk IDs, text snippets, cosine scores, and retrieval latency.
+      </p>
+      
+      <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">Guardrails</h3>
+      <ul style="color: var(--muted); line-height: 1.8; padding-left: 1.5rem;">
+        <li><strong>Input validation:</strong> PDF-only upload, 5000-word hard limit enforced server-side</li>
+        <li><strong>System prompt constraints:</strong> Model instructed to answer only from context</li>
+        <li><strong>Citation auditability:</strong> All answers traced back to source chunks with scores</li>
+      </ul>
+      
+      <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">Evaluation Harness</h3>
+      <p style="color: var(--muted); line-height: 1.6;">
+        The benchmark generates 5 synthetic test questions by sampling chunks and extracting their first sentences.
+        Three reference-free metrics are computed:
+      </p>
+      <ul style="color: var(--muted); line-height: 1.8; padding-left: 1.5rem;">
+        <li><strong>Retrieval Precision:</strong> Average top-1 FAISS cosine score across test questions (measures retrieval quality)</li>
+        <li><strong>Answer Relevance:</strong> Average cosine similarity between question embeddings and generated answer embeddings (measures answer-question alignment)</li>
+        <li><strong>Context Coverage:</strong> Fraction of distinct chunks used at least once across all retrievals (measures index utilization)</li>
+      </ul>
+      
+      <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">Stack & Deployment</h3>
+      <p style="color: var(--muted); line-height: 1.6;">
+        Backend: <strong>FastAPI + Docker</strong> deployed on Render. Frontend: <strong>Static HTML</strong> on Cloudflare Pages.
+        No build pipeline required. CORS configured for production domain. <code>OPENAI_API_KEY</code> injected at runtime (never hardcoded).
+      </p>
+      
+      <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">Demo Limitations</h3>
+      <ul style="color: var(--muted); line-height: 1.8; padding-left: 1.5rem;">
+        <li>In-memory index with no persistence (session-scoped only)</li>
+        <li>5000-word document cap for demo purposes</li>
+        <li>Reference-free metrics (production would use RAGAS or similar with ground truth)</li>
+        <li>Single-user sessions (no multi-tenancy or authentication)</li>
+      </ul>
+      
+      <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">Architecture Diagram</h3>
+      <div class="architecture-diagram">
+        <pre>
+┌─────────────────────────────────────────────────────────────────┐
+│                        CLIENT (Browser)                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ PDF Upload   │  │ Chat UI      │  │ Benchmark UI │           │
+│  └──────┬───────┘  └───────┬──────┘  └────────┬─────┘           │
+└─────────┼──────────────────┼──────────────────┼─────────────────┘
+          │                  │                  │
+          │ POST /ingest     │ POST /chat       │ POST /eval
+          │ (multipart/form) │ (JSON)           │ (JSON)
+          ▼                  ▼                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    FASTAPI BACKEND (Render)                     │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Routers: /api/v1/ingest, /api/v1/chat, /api/v1/eval      │   │
+│  └────────────┬──────────────────┬─────────────┬────────────┘   │
+│               │                  │             │                │
+│  ┌────────────▼─────┐  ┌─────────▼───────┐  ┌──▼─────────────┐  │
+│  │ PDF Parser       │  │ Retriever       │  │ Evaluator      │  │
+│  │ (pdfplumber)     │  │ (FAISS search)  │  │ (metrics calc) │  │
+│  └────────┬─────────┘  └─────────┬───────┘  └────────────────┘  │
+│           │                      │                              │
+│  ┌────────▼─────────┐  ┌─────────▼────────┐                     │
+│  │ Chunker          │  │ GPT-4o Mini      │                     │
+│  │ (sliding window) │  │ (OpenAI API)     │                     │
+│  └────────┬─────────┘  └──────────────────┘                     │
+│           │                                                     │
+│  ┌────────▼─────────────────────────┐                           │
+│  │ Embedder (sentence-transformers) │                           │
+│  │ Model: all-MiniLM-L6-v2          │                           │
+│  │ FAISS IndexFlatIP (cosine sim)   │                           │
+│  └──────────────────────────────────┘                           │
+│                                                                 │
+│  ┌──────────────────────────────────┐                           │
+│  │ Session Store (in-memory)        │                           │
+│  │ {session_id: {index, chunks, …}} │                           │
+│  └──────────────────────────────────┘                           │
+└─────────────────────────────────────────────────────────────────┘
+        </pre>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div>© <span id="year"></span> Neuromorphic Inference Lab</div>
+      <div class="prov">
+        <span id="build-branch">branch: …</span>
+        <span id="build-commit">commit: …</span>
+        <span id="build-time">built: …</span>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    // Configuration
+    // Auto-detect environment: use localhost if running locally, otherwise use production
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const PROD_API_BASE = "https://nil-rag-copilot.onrender.com/api/v1";
+    const PROD_API_ROOT = "https://nil-rag-copilot.onrender.com";
+    const LOCAL_API_BASE = "http://localhost:8080/api/v1";
+    const LOCAL_API_ROOT = "http://localhost:8080";
+    
+    // Use local backend if running locally, otherwise use production
+    const API_BASE = isLocal ? LOCAL_API_BASE : PROD_API_BASE;
+    const API_ROOT = isLocal ? LOCAL_API_ROOT : PROD_API_ROOT;
+    
+    console.log(`Environment: ${isLocal ? 'LOCAL' : 'PRODUCTION'}`);
+    console.log(`API_BASE: ${API_BASE}`);
+    
+    // State
+    let sessionId = null;
+    let selectedFile = null;
+    
+    // DOM Elements
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const ingestBtn = document.getElementById('ingestBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressSteps = document.getElementById('progressSteps');
+    const ingestResult = document.getElementById('ingestResult');
+    const chatSection = document.getElementById('chatSection');
+    const chatWindow = document.getElementById('chatWindow');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const benchmarkSection = document.getElementById('benchmarkSection');
+    const benchmarkBtn = document.getElementById('benchmarkBtn');
+    const benchmarkResults = document.getElementById('benchmarkResults');
+    const systemStatus = document.getElementById('systemStatus');
+    
+    // Initialize
+    document.getElementById('year').textContent = String(new Date().getFullYear());
+    
+    // System health check with retry logic
+    const HEALTH_URL = API_ROOT + "/health";
+
+    async function checkBackendHealth() {
+      const badge = document.getElementById("systemStatus");
+      badge.textContent = "⏳ Connecting…";
+      badge.className = "status-badge pending";
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const res = await fetch(HEALTH_URL, {
+            method: "GET",
+            signal: AbortSignal.timeout(8000),
+          });
+          if (res.ok) {
+            badge.textContent = "● System online";
+            badge.className = "status-badge online";
+            return true;
+          }
+        } catch (err) {
+          console.error(`Health check attempt ${attempt} failed:`, err);
+          if (attempt < 3) {
+            badge.textContent = `⏳ Retrying… (${attempt}/3)`;
+            await new Promise(r => setTimeout(r, 3000));
+          }
+        }
+      }
+
+      badge.textContent = "⚠ System Offline";
+      badge.className = "status-badge offline";
+
+      const banner = document.getElementById("offlineBanner");
+      if (banner) {
+        banner.style.display = "block";
+        banner.innerHTML = `
+          <strong>⚠ Backend not reachable</strong><br>
+          The API at <code>${HEALTH_URL}</code> did not respond.<br>
+          <strong>Likely causes:</strong>
+          <ul>
+            <li>Backend not deployed yet — push to GitHub and deploy on Render.</li>
+            <li>Render free tier is cold-starting (wait 30–60 s, then refresh).</li>
+            <li><code>API_BASE</code> in the HTML points to a wrong URL.</li>
+            <li>CORS not configured for this origin on the backend.</li>
+          </ul>
+        `;
+      }
+      return false;
+    }
+
+    // Run health check on page load
+    document.addEventListener("DOMContentLoaded", async () => {
+      const isOnline = await checkBackendHealth();
+      if (!isOnline) {
+        const btn = document.getElementById("ingestBtn");
+        if (btn) {
+          btn.disabled = true;
+          btn.title = "Backend offline — deploy the API first";
+        }
+      }
+    });
+    
+    // File upload handlers
+    uploadZone.addEventListener('click', () => fileInput.click());
+    
+    uploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadZone.classList.add('drag-over');
+    });
+    
+    uploadZone.addEventListener('dragleave', () => {
+      uploadZone.classList.remove('drag-over');
+    });
+    
+    uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFileSelect(files[0]);
+      }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFileSelect(e.target.files[0]);
+      }
+    });
+    
+    function handleFileSelect(file) {
+      // Validate PDF
+      if (file.type !== 'application/pdf') {
+        showIngestResult('error', '✗ Please select a PDF file.');
+        return;
+      }
+      
+      selectedFile = file;
+      const sizeKB = (file.size / 1024).toFixed(2);
+      fileInfo.innerHTML = `<strong>${file.name}</strong> (${sizeKB} KB)`;
+      fileInfo.classList.remove('hidden');
+      ingestBtn.disabled = false;
+    }
+    
+    // Ingest handler
+    ingestBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      
+      ingestBtn.disabled = true;
+      ingestResult.classList.add('hidden');
+      progressContainer.classList.remove('hidden');
+      
+      // Simulate progress steps (visual feedback only - actual progress depends on server processing time)
+      updateProgress(30, 'Extracting text…');
+      
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      
+      try {
+        setTimeout(() => updateProgress(60, 'Building vector index…'), 500);
+        
+        const response = await fetch(`${API_BASE}/ingest`, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          updateProgress(100, 'Done');
+          sessionId = data.session_id;
+          
+          setTimeout(() => {
+            progressContainer.classList.add('hidden');
+            showIngestResult('success', 
+              `✓ ${data.message}<br>` +
+              `Session ID: ${data.session_id}<br>` +
+              `Words: ${data.word_count} | Chunks: ${data.chunk_count}`
+            );
+            
+            // Show chat and benchmark sections
+            chatSection.classList.remove('hidden');
+            benchmarkSection.classList.remove('hidden');
+            addSystemMessage('Index ready. You can now ask questions about your document.');
+          }, 500);
+        } else {
+          progressContainer.classList.add('hidden');
+          const errorDetail = escapeHtml(data.error || data.detail || 'Unknown error');
+          let errorMsg = `✗ Error ${response.status}: ${errorDetail}`;
+          if (response.status === 404) {
+            // API_BASE is our own constant, no need to escape
+            errorMsg += '<br><small>Backend route not found. Please verify:<br>' +
+                        '1. Backend service is deployed and running<br>' +
+                        '2. API_BASE URL in code matches deployed service<br>' +
+                        `3. Expected route: ${API_BASE}/ingest</small>`;
+          }
+          showIngestResult('error', errorMsg);
+          ingestBtn.disabled = false;
+        }
+      } catch (err) {
+        progressContainer.classList.add('hidden');
+        const escapedErrMsg = escapeHtml(err.message);
+        let errorMsg = `✗ Network error: ${escapedErrMsg}`;
+        if (err.message.includes('Failed to fetch')) {
+          errorMsg += '<br><small>Cannot reach backend. Check if service is running and CORS is configured.</small>';
+        }
+        showIngestResult('error', errorMsg);
+        ingestBtn.disabled = false;
+      }
+    });
+    
+    // Helper to safely escape HTML in dynamic content (e.g., error messages from backend)
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    function updateProgress(percent, step) {
+      progressBar.style.width = `${percent}%`;
+      progressSteps.textContent = step;
+    }
+    
+    function showIngestResult(type, message) {
+      ingestResult.className = `ingest-result ${type}`;
+      // Security model: Message contains pre-escaped dynamic content (error messages from
+      // backend/JS) mixed with intentional HTML tags (<br>, <small>) for formatting.
+      // Only untrusted data (backend errors, JS error messages) is escaped via escapeHtml().
+      // Trusted HTML structure is controlled by our code and safe to render.
+      // Note: This approach is acceptable for this use case but requires careful attention
+      // when adding new error messages. Consider using DOM methods or a template library
+      // for more complex scenarios.
+      ingestResult.innerHTML = message;
+      ingestResult.classList.remove('hidden');
+    }
+    
+    // Chat handlers
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+    
+    async function sendMessage() {
+      const question = chatInput.value.trim();
+      if (!question || !sessionId) return;
+      
+      // Add user message
+      addMessage('user', question);
+      chatInput.value = '';
+      sendBtn.disabled = true;
+      
+      try {
+        const response = await fetch(`${API_BASE}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId, question }),
+          mode: 'cors'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          addAssistantMessage(data.answer, data.citations, data.retrieval_latency_ms);
+        } else {
+          addMessage('error', `Error: ${data.error || data.detail || 'Unknown error'}`);
+        }
+      } catch (err) {
+        addMessage('error', `Network error: ${err.message}`);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+    
+    function addMessage(type, text) {
+      const msg = document.createElement('div');
+      msg.className = `chat-message ${type}`;
+      msg.textContent = text;
+      chatWindow.appendChild(msg);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+    
+    function addSystemMessage(text) {
+      addMessage('system', text);
+    }
+    
+    function addAssistantMessage(answer, citations, latency) {
+      const msg = document.createElement('div');
+      msg.className = 'chat-message assistant';
+      
+      const answerDiv = document.createElement('div');
+      answerDiv.textContent = answer;
+      msg.appendChild(answerDiv);
+      
+      if (citations && citations.length > 0) {
+        const citationsDiv = document.createElement('div');
+        citationsDiv.className = 'citations-block';
+        
+        const toggle = document.createElement('div');
+        toggle.className = 'citation-toggle';
+        toggle.textContent = `▸ Show ${citations.length} citation(s) | Latency: ${latency}ms`;
+        
+        const citationsList = document.createElement('div');
+        citationsList.style.display = 'none';
+        citationsList.style.marginTop = '.5rem';
+        
+        citations.forEach(cit => {
+          const citDiv = document.createElement('div');
+          citDiv.className = 'citation';
+          citDiv.innerHTML = 
+            `<strong>Chunk ${cit.chunk_id}</strong> (score: ${cit.score.toFixed(3)})<br>` +
+            `<em>${cit.text_snippet}</em>`;
+          citationsList.appendChild(citDiv);
+        });
+        
+        toggle.addEventListener('click', () => {
+          const isHidden = citationsList.style.display === 'none';
+          citationsList.style.display = isHidden ? 'block' : 'none';
+          toggle.textContent = `${isHidden ? '▾' : '▸'} ${isHidden ? 'Hide' : 'Show'} ${citations.length} citation(s) | Latency: ${latency}ms`;
+        });
+        
+        citationsDiv.appendChild(toggle);
+        citationsDiv.appendChild(citationsList);
+        msg.appendChild(citationsDiv);
+      }
+      
+      chatWindow.appendChild(msg);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+    
+    // Benchmark handler
+    benchmarkBtn.addEventListener('click', async () => {
+      if (!sessionId) return;
+      
+      benchmarkBtn.disabled = true;
+      benchmarkBtn.innerHTML = '<span class="spinner"></span>Running benchmark...';
+      
+      try {
+        const response = await fetch(`${API_BASE}/eval`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId }),
+          mode: 'cors'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          displayBenchmarkResults(data);
+        } else {
+          alert(`Error: ${data.error || data.detail || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`Network error: ${err.message}`);
+      } finally {
+        benchmarkBtn.disabled = false;
+        benchmarkBtn.innerHTML = '⚡ Run benchmark';
+      }
+    });
+    
+    function displayBenchmarkResults(data) {
+      benchmarkResults.classList.remove('hidden');
+      
+      // Render chart
+      renderMetricsChart(data.metrics);
+      
+      // Populate table
+      const tbody = document.getElementById('metricsTableBody');
+      tbody.innerHTML = '';
+      data.metrics.forEach(m => {
+        const row = tbody.insertRow();
+        row.insertCell(0).textContent = m.name;
+        const scoreCell = row.insertCell(1);
+        scoreCell.className = 'score-cell';
+        scoreCell.textContent = m.score.toFixed(3);
+        row.insertCell(2).textContent = m.description;
+      });
+      
+      // Show test Q&A
+      const qaContainer = document.getElementById('testQuestionsContainer');
+      qaContainer.innerHTML = '';
+      data.test_questions.forEach((q, i) => {
+        const qaDiv = document.createElement('div');
+        qaDiv.style.marginBottom = '1rem';
+        qaDiv.style.padding = '.8rem';
+        qaDiv.style.background = '#0a0a0a';
+        qaDiv.style.borderRadius = '6px';
+        qaDiv.innerHTML = 
+          `<strong style="color: #4fc3f7;">Q${i+1}:</strong> ${q}<br>` +
+          `<strong style="color: #00ff88;">A:</strong> ${data.answers[i]}`;
+        qaContainer.appendChild(qaDiv);
+      });
+    }
+    
+    function renderMetricsChart(metrics) {
+      const canvas = document.getElementById('metricsChart');
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      
+      // Clear canvas
+      ctx.fillStyle = '#0d0d0d';
+      ctx.fillRect(0, 0, width, height);
+      
+      // Chart settings
+      const padding = 50;
+      const barWidth = 80;
+      const maxValue = 1.0;
+      const chartHeight = height - padding * 2;
+      const chartWidth = width - padding * 2;
+      const barSpacing = (chartWidth - (barWidth * metrics.length)) / (metrics.length + 1);
+      
+      // Colors
+      const colors = ['#00ff88', '#4fc3f7', '#ff9800'];
+      const GRADIENT_ALPHA = '66'; // 40% opacity (0x66 = 102/255 ≈ 0.4)
+      
+      // Draw Y-axis
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padding, padding);
+      ctx.lineTo(padding, height - padding);
+      ctx.stroke();
+      
+      // Draw Y-axis labels
+      ctx.fillStyle = '#888';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 5; i++) {
+        const y = padding + (chartHeight * i / 5);
+        const value = (1 - i / 5).toFixed(1);
+        ctx.fillText(value, padding - 10, y + 4);
+        
+        // Grid lines
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(width - padding, y);
+        ctx.stroke();
+      }
+      
+      // Draw bars
+      metrics.forEach((metric, i) => {
+        const x = padding + barSpacing + i * (barWidth + barSpacing);
+        const barHeight = (metric.score / maxValue) * chartHeight;
+        const y = height - padding - barHeight;
+        
+        // Gradient fill
+        const gradient = ctx.createLinearGradient(x, y, x, height - padding);
+        gradient.addColorStop(0, colors[i]);
+        gradient.addColorStop(1, colors[i] + GRADIENT_ALPHA);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x, y, barWidth, barHeight);
+        
+        // Border
+        ctx.strokeStyle = colors[i];
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // Value label
+        ctx.fillStyle = colors[i];
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(metric.score.toFixed(3), x + barWidth / 2, y - 10);
+        
+        // Metric name
+        ctx.fillStyle = '#ccc';
+        ctx.font = '11px monospace';
+        const words = metric.name.split(' ');
+        words.forEach((word, wi) => {
+          ctx.fillText(word, x + barWidth / 2, height - padding + 20 + wi * 14);
+        });
+      });
+    }
+  </script>
+  
+  <script src="/build-info.js"></script>
+</body>
+</html>
